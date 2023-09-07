@@ -1,5 +1,9 @@
 import customtkinter as ctk
 from settings import *
+import pandas as pd
+
+import matplotlib.pyplot as plt 
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import yfinance as yf
 from datetime import datetime
@@ -22,8 +26,11 @@ class App(ctk.CTk):
         #* DATA
         self.input_string = ctk.StringVar(value = 'AAPL')
         self.time_string = ctk.StringVar(value = TIME_OPTIONS[0])
+        self.time_string.trace('w', self.create_graph)
+        self.has_data = False
 
         #* WIDGETS
+        self.graph_panel = None
         InputPanel(self, self.input_string, self.time_string)
 
         #* EVENT
@@ -33,19 +40,35 @@ class App(ctk.CTk):
         self.mainloop()
 
 
-    def input_handler(self,event = None):
+
+
+    def input_handler(self,event = None): #! when user presses enter
         ticker = yf.Ticker(self.input_string.get()) #! takes name of company stock
         start = datetime(1950,1,1)
         end = datetime.today()
-        self.max = ticker.history(start = start, end = end, period = '1d') #! period is how often the stock was checked
-        self.year = self.max.iloc[-260:]    #! iloc gets indexed rows using an indexing system so the first row would be index 0
-                                            #! gets the last 260 rows aka the whole year minus the weekends
+        self.max = ticker.history(start = start, end = end, period = '1d') #! period is how frequent
+        self.year = self.max.iloc[-260:]   
+                                            
 
-        #TODO: create 6 months, 1 months, one week, all of them to today, exclude weekends
         self.six_months = self.max.iloc[-130:]
         self.one_month = self.max.iloc[-22:]
         self.one_week = self.max.iloc[-5:]
+        self.has_data = True
+        self.create_graph()
         
+    def create_graph(self, *args):
+        if self.graph_panel: self.graph_panel.pack_forget()
+
+        if self.has_data:
+            match self.time_string.get():
+                case 'Max': data = self.max
+                case '1 Year': data = self.year
+                case '6 Months': data = self.six_months
+                case 'Month': data = self.one_month
+                case 'Week': data = self.one_week
+
+            self.graph_panel = GraphPanel(self, data)
+
         #print(self.max['Close'])
         #print(self.max.columns)
 
@@ -68,8 +91,7 @@ class InputPanel(ctk.CTkFrame):
         #* WIDGETS  
         ctk.CTkEntry(self, textvariable = input_string, fg_color = BG_COLOR, border_color = TEXT_COLOR, border_width = 1).pack(side = 'left', padx = 10, pady = 10)
 
-        #TODO: create one textbutton for evey string inside of Time_Options
-        self.buttons = [TextButton(self, text, time_string) for text in TIME_OPTIONS] #! here text and time_string both refer to the stuff in TIME_OPTIONS
+        self.buttons = [TextButton(self, text, time_string) for text in TIME_OPTIONS] 
 
         time_string.trace('w', self.unselect_all_buttons)
 
@@ -78,16 +100,16 @@ class InputPanel(ctk.CTkFrame):
             button.unselect()
 
 
-class TextButton(ctk.CTkLabel):
+class TextButton(ctk.CTkLabel): #! creates the time period labels
     def __init__(self, parent, text, time_string):
         super().__init__(parent, text = text, text_color = TEXT_COLOR)
         self.pack(side = 'right', padx = 10, pady = 10)
         self.time_string = time_string
         self.text = text
-        #TODO: turn the label into a button
+       
         self.bind('<Button>', self.select_handler)
 
-        if time_string.get() == text: #! time_string is defaulted to "Max", since max is the first item in the settings, this would match in the first button created in the loop in line 47
+        if time_string.get() == text: 
             self.select_handler()
 
     def select_handler(self, event = None): #! clicking on label turns it blue
@@ -96,5 +118,36 @@ class TextButton(ctk.CTkLabel):
 
     def unselect(self):
         self.configure(text_color = TEXT_COLOR)
+
+class GraphPanel(ctk.CTkFrame):
+    def __init__(self, parent, data):
+        super().__init__(parent, fg_color = BG_COLOR)
+        self.pack(expand = True, fill = 'both')
+
+        #* FIGURE
+        figure = plt.Figure()
+        figure.subplots_adjust(left = 0, right = .99, bottom = 0, top = 1)
+        figure.patch.set_facecolor(BG_COLOR)
+
+        #* GRAPH
+        ax = figure.add_subplot(111) #! 111 is the top left position of the graph
+        ax.set_facecolor(BG_COLOR)
+
+        for side in ['top','left','right','bottom']:
+            ax.spines[side].set_color(BG_COLOR)
+
+        line = ax.plot(data['Close'])[0]
+        line.set_color(HIGHLIGHT_COLOR)
+
+        #* TICKS
+        ax.tick_params(axis = 'x', direction = 'in', pad = -14, colors = TICK_COLOR)
+        ax.yaxis.tick_right()
+
+        ax.tick_params(axis = 'y', direction = 'in', pad = -22, colors = HIGHLIGHT_COLOR)
+
+        #* WIDGET
+        figure_widget = FigureCanvasTkAgg(figure, master = self)
+        figure_widget.get_tk_widget().pack(fill = 'both', expand = True)
+
 
 App()
