@@ -1,6 +1,10 @@
 import customtkinter as ctk
 from settings import *
 
+import yfinance as yf
+from datetime import datetime
+
+
 try:
     from ctypes import windll, byref, sizeof, c_int
 except:
@@ -22,8 +26,29 @@ class App(ctk.CTk):
         #* WIDGETS
         InputPanel(self, self.input_string, self.time_string)
 
+        #* EVENT
+        self.bind('<Return>', self.input_handler)
+
         #* RUN
         self.mainloop()
+
+
+    def input_handler(self,event = None):
+        ticker = yf.Ticker(self.input_string.get()) #! takes name of company stock
+        start = datetime(1950,1,1)
+        end = datetime.today()
+        self.max = ticker.history(start = start, end = end, period = '1d') #! period is how often the stock was checked
+        self.year = self.max.iloc[-260:]    #! iloc gets indexed rows using an indexing system so the first row would be index 0
+                                            #! gets the last 260 rows aka the whole year minus the weekends
+
+        #TODO: create 6 months, 1 months, one week, all of them to today, exclude weekends
+        self.six_months = self.max.iloc[-130:]
+        self.one_month = self.max.iloc[-22:]
+        self.one_week = self.max.iloc[-5:]
+        
+        #print(self.max['Close'])
+        #print(self.max.columns)
+
 
 
     def title_bar_color(self):
@@ -66,7 +91,7 @@ class TextButton(ctk.CTkLabel):
             self.select_handler()
 
     def select_handler(self, event = None): #! clicking on label turns it blue
-        self.time_string.set(self.text)
+        self.time_string.set(self.text) #! Triggers trace and the unselect method, after all that, then does the config below
         self.configure(text_color = HIGHLIGHT_COLOR)
 
     def unselect(self):
